@@ -9,7 +9,7 @@ use Carp;
 use vars qw($VERSION @ISA);
 @ISA = qw(DynaLoader);
 
-$VERSION = '0.81';
+$VERSION = '0.85';
 
 bootstrap HTML::Template::Pro $VERSION;
 
@@ -244,14 +244,27 @@ sub param {
 
 sub register_function {
   my($self, $name, $sub) = @_;
-  croak("HTML::Template::Pro : last arg of register_function must be subroutine reference\n")
-    unless ref($sub) eq 'CODE';
-  if (ref $self) {
-      # per object call
-      $self->{expr_func}->{$name} = $sub;
+  if ( ref($sub) eq 'CODE' ) {
+      if (ref $self) {
+          # per object call
+          $self->{expr_func}->{$name} = $sub;
+          $self->{expr_func_user_list}->{$name} = 1;
+      } else {
+          # per class call
+          $FUNC{$name} = $sub;
+      }
+  } elsif ( defined $sub ) {
+      croak("HTML::Template::Pro : last arg of register_function must be subroutine reference\n")
   } else {
-      # per class call
-      $FUNC{$name} = $sub;
+      if (ref $self) {
+          if ( defined $name ) {
+              return $self->{expr_func}->{$name};
+          } else {
+              return keys %{ $self->{expr_func_user_list} };
+          }
+      } else {
+          return keys %FUNC;
+      }
   }
 }
 
@@ -437,14 +450,15 @@ Yet powerful, HTML::Template is slow, especially if mod_perl isn't
 available or in case of disk usage and memory limitations.
 
 HTML::Template::Pro is a fast lightweight C/Perl+XS reimplementation
-of HTML::Template (as of 2.8) and HTML::Template::Expr (as of 0.0.5). 
+of HTML::Template (as of 2.9) and HTML::Template::Expr (as of 0.0.7). 
 It is not intended to be a complete replacement, 
 but to be a fast implementation of HTML::Template if you don't need 
 quering, the extended facility of HTML::Template.
 Designed for heavy upload, resource limitations, abcence of mod_perl.
 
 HTML::Template::Pro has complete support of filters and HTML::Template::Expr's 
-tag EXPR="<expression>", including user-defined functions.
+tag EXPR="<expression>", including user-defined functions and
+construction <TMPL_INCLUDE EXPR="...">.
 
 HTML::Template work cycle uses 2 steps. First, it loads and parse template.
 Then it accepts param() calls until you call output().
@@ -485,13 +499,15 @@ See L<HTML::Template::PerlInterface/BUGS>
 I. Vlasenko, E<lt>viy@altlinux.orgE<gt>
 
 with contributions of
-Bruni Emiliano, <info@ebruni.it>
-Stanislav Yadykin, <tosick at altlinux.ru>
-Viacheslav Sheveliov <slavash at aha.ru>
+Bruni Emiliano, E<lt>info at ebruni.itE<gt>
+Stanislav Yadykin, E<lt>tosick at altlinux.ruE<gt>
+Viacheslav Sheveliov E<lt>slavash at aha.ruE<gt>
+Shigeki Morimoto E<lt>shigeki.morimoto at mixi.co.jpE<gt>
+Kirill Rebenok E<lt>kirill at rebenok.plE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2005 by I. Yu. Vlasenko.
+Copyright (C) 2005-2009 by I. Yu. Vlasenko.
 Pieces of code in Pro.pm and documentation of HTML::Template are
 copyright (C) 2000-2002 Sam Tregar (sam@tregar.com)
 

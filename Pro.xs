@@ -207,15 +207,15 @@ ABSTRACT_ARGLIST* init_expr_arglist(ABSTRACT_CALLER* none)
 }
 
 static 
-void push_expr_arglist(ABSTRACT_ARGLIST* arglist, struct tmplpro_param* param)
+void push_expr_arglist(ABSTRACT_ARGLIST* arglist, ABSTRACT_EXPRVAL* exprval)
 {
   SV* val=NULL;
-  int exprval_type=tmplpro_get_expr_type(param);
+  int exprval_type=tmplpro_get_expr_type(exprval);
   PSTRING parg;
   switch (exprval_type) {
-  case EXPR_TYPE_INT:  val=newSViv(tmplpro_get_expr_as_int64(param));break;
-  case EXPR_TYPE_DBL:  val=newSVnv(tmplpro_get_expr_as_double(param));break;
-  case EXPR_TYPE_PSTR: parg=tmplpro_get_expr_as_pstring(param);
+  case EXPR_TYPE_INT:  val=newSViv(tmplpro_get_expr_as_int64(exprval));break;
+  case EXPR_TYPE_DBL:  val=newSVnv(tmplpro_get_expr_as_double(exprval));break;
+  case EXPR_TYPE_PSTR: parg=tmplpro_get_expr_as_pstring(exprval);
                  val=newSVpvn(parg.begin, parg.endnext-parg.begin);break;
   default: die ("Perl wrapper: FATAL INTERNAL ERROR:Unsupported type %d in exprval", exprval_type);
   }
@@ -223,7 +223,7 @@ void push_expr_arglist(ABSTRACT_ARGLIST* arglist, struct tmplpro_param* param)
 }
 
 static 
-void call_expr_userfnc (ABSTRACT_CALLER* callback_state, ABSTRACT_ARGLIST* arglist, ABSTRACT_USERFUNC* hashvalptr, struct tmplpro_param* param) {
+void call_expr_userfnc (ABSTRACT_CALLER* callback_state, ABSTRACT_ARGLIST* arglist, ABSTRACT_USERFUNC* hashvalptr, ABSTRACT_EXPRVAL* exprval) {
   dSP ;
   char* empty="";
   char* strval;
@@ -237,11 +237,11 @@ void call_expr_userfnc (ABSTRACT_CALLER* callback_state, ABSTRACT_ARGLIST* argli
   retvalpstr.endnext=empty;
   if (hashvalptr==NULL) {
     die ("FATAL INTERNAL ERROR:Call_EXPR:function called but not exists");
-    tmplpro_set_expr_as_pstring(param,retvalpstr);
+    tmplpro_set_expr_as_pstring(exprval,retvalpstr);
     return;
   } else if (! SvROK(*((SV**) hashvalptr)) || (SvTYPE(SvRV(*((SV**) hashvalptr))) != SVt_PVCV)) {
     die ("FATAL INTERNAL ERROR:Call_EXPR:not a function reference");
-    tmplpro_set_expr_as_pstring(param,retvalpstr);
+    tmplpro_set_expr_as_pstring(exprval,retvalpstr);
     return;
   }
   
@@ -261,9 +261,9 @@ void call_expr_userfnc (ABSTRACT_CALLER* callback_state, ABSTRACT_ARGLIST* argli
     svretval=POPs;
     if (SvOK(svretval)) {
       if (SvIOK(svretval)) {
-	tmplpro_set_expr_as_int64(param,SvIV(svretval));
+	tmplpro_set_expr_as_int64(exprval,SvIV(svretval));
       } else if (SvNOK(svretval)) {
-	tmplpro_set_expr_as_double(param,SvNV(svretval));
+	tmplpro_set_expr_as_double(exprval,SvNV(svretval));
       } else {
 	STRLEN len=0;
 	strval =SvPV(svretval, len);
@@ -272,13 +272,13 @@ void call_expr_userfnc (ABSTRACT_CALLER* callback_state, ABSTRACT_ARGLIST* argli
 	SvREFCNT_inc(svretval);
 	retvalpstr.begin=strval;
 	retvalpstr.endnext=strval +len;
-	tmplpro_set_expr_as_pstring(param,retvalpstr);
+	tmplpro_set_expr_as_pstring(exprval,retvalpstr);
       }
     } else {
-      warn ("user defined function returned undef");
+      if (debuglevel) warn ("user defined function returned undef\n");
     }
   } else {
-    warn ("user defined function returned nothing");
+    if (debuglevel) warn ("user defined function returned nothing\n");
   }
 
   FREETMPS ;
@@ -437,6 +437,7 @@ struct tmplpro_param* process_tmplpro_options (struct perl_callback_state* callb
   /* tmplpro_set_option_search_path_on_include(param,get_integer_from_hash(SelfHash,"search_path_on_include")); */
   tmplpro_set_option_global_vars(param, get_integer_from_hash(SelfHash,"global_vars"));
   tmplpro_set_option_debug(param, get_integer_from_hash(SelfHash,"debug"));
+  debuglevel = tmplpro_get_option_debug(param);
   tmplpro_set_option_loop_context_vars(param, get_integer_from_hash(SelfHash,"loop_context_vars"));
   tmplpro_set_option_case_sensitive(param, get_integer_from_hash(SelfHash,"case_sensitive"));
   tmplpro_set_option_path_like_variable_scope(param, get_integer_from_hash(SelfHash,"path_like_variable_scope"));
@@ -507,7 +508,7 @@ exec_tmpl(self_ptr,possible_output)
 	  tmplpro_set_option_ext_writer_state(proparam,PerlIO_stdout());
 	} else {
 	  tmplpro_set_option_ext_writer_state(proparam,possible_output);
-	  if (debuglevel) warn("output=given descriptor\n");
+	  if (debuglevel>1) warn("output=given descriptor\n");
 	}
 	tmplpro_set_option_WriterFuncPtr(proparam,&write_chars_to_file);
 	RETVAL = tmplpro_exec_tmpl(proparam);
@@ -529,7 +530,7 @@ exec_tmpl_string(self_ptr)
 	/* 1) estimate string as 2*filesize */
 	/* 2) make it mortal ? auto...  */
 	struct tmplpro_param* proparam=process_tmplpro_options(&callback_state);
-	if (debuglevel) warn("output=string\n");
+	if (debuglevel>1) warn("output=string\n");
 	OutputString=newSV(256); /* 256 allocated bytes -- should be approx. filesize*/
 	sv_setpvn(OutputString, "", 0);
 	tmplpro_set_option_WriterFuncPtr(proparam,&write_chars_to_string);

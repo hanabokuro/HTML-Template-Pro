@@ -30,9 +30,6 @@ struct tmplpro_state {
   /* tag stack */
   struct tagstack tag_stack;
 
-  /* moved from state; are passed to include */
-  /* variable scope (nested loops) */
-  /* struct scope_stack var_scope_stack;*/
   /* expr state variables */
   /* expr string buffer; used to unescape pstring arg */
   /* TODO: test and move it too (otherwise it will cause bugs in included exprs?) */
@@ -48,7 +45,7 @@ struct tmplpro_state {
   int is_expect_quote_like;
 };
 
-extern void _tmpl_log_state (struct tmplpro_state *state, int level);
+extern TMPLPRO_LOCAL void _tmpl_log_state (struct tmplpro_state *state, int level);
 
 /* 
  * Local Variables:

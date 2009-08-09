@@ -9,43 +9,73 @@
 #include "exprval.h"
 #include "pparam.h"
 
-void tmplpro_set_expr_as_int64 (struct tmplpro_param* param,EXPR_int64 ival) {
-  struct exprval* p = &(param->userfunc_call);
+API_IMPL 
+void 
+APICALL
+tmplpro_set_expr_as_int64 (struct exprval* p,EXPR_int64 ival) {
   p->type=EXPR_TYPE_INT;
   p->val.intval=ival;
 }
-void tmplpro_set_expr_as_double (struct tmplpro_param* param,double dval) {
-  struct exprval* p = &(param->userfunc_call);
+
+API_IMPL 
+void 
+APICALL
+tmplpro_set_expr_as_double (struct exprval* p,double dval) {
   p->type=EXPR_TYPE_DBL;
   p->val.dblval=dval;
 }
-void tmplpro_set_expr_as_string (struct tmplpro_param* param,char* sval) {
-  struct exprval* p = &(param->userfunc_call);
+
+API_IMPL 
+void 
+APICALL
+tmplpro_set_expr_as_string (struct exprval* p,char* sval) {
   p->type=EXPR_TYPE_PSTR;
   p->val.strval.begin=sval;
   p->val.strval.endnext=sval;
   if (NULL!=sval) p->val.strval.endnext+=strlen(sval);
 }
-void tmplpro_set_expr_as_pstring (struct tmplpro_param* param,PSTRING pval) {
-  struct exprval* p = &(param->userfunc_call);
+
+API_IMPL 
+void 
+APICALL
+tmplpro_set_expr_as_pstring (struct exprval* p,PSTRING pval) {
   p->type=EXPR_TYPE_PSTR;
   p->val.strval=pval;
 }
 
-int      tmplpro_get_expr_type (struct tmplpro_param* param) {
-  return (int) param->userfunc_call.type;
+API_IMPL 
+int
+APICALL
+tmplpro_get_expr_type (struct exprval* p) {
+  return (int) p->type;
 }
-EXPR_int64 tmplpro_get_expr_as_int64 (struct tmplpro_param* param) {
-  return param->userfunc_call.val.intval;
+
+API_IMPL 
+EXPR_int64 
+APICALL
+tmplpro_get_expr_as_int64 (struct exprval* p) {
+  return p->val.intval;
 }
-double   tmplpro_get_expr_as_double (struct tmplpro_param* param) {
-  return param->userfunc_call.val.dblval;
+
+API_IMPL 
+double
+APICALL
+tmplpro_get_expr_as_double (struct exprval* p) {
+  return p->val.dblval;
 }
-char*    tmplpro_get_expr_as_string (struct tmplpro_param* param) {
-  PSTRING pval = param->userfunc_call.val.strval;
+
+API_IMPL 
+char*
+APICALL
+tmplpro_get_expr_as_string (struct exprval* p) {
+  PSTRING pval = p->val.strval;
   *(pval.endnext)=0;
   return pval.begin;
 }
-PSTRING  tmplpro_get_expr_as_pstring (struct tmplpro_param* param) {
-  return param->userfunc_call.val.strval;
+
+API_IMPL 
+PSTRING
+APICALL
+tmplpro_get_expr_as_pstring (struct exprval* p) {
+  return p->val.strval;
 }

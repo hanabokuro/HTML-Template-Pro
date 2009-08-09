@@ -318,15 +318,17 @@ escape_pstring (pbuffer* StrBuffer, PSTRING pstring, int escapeopt) {
   return retval;
 }
 
+TMPLPRO_LOCAL
 void 
 _tmpl_log_state (struct tmplpro_state *state, int level)
 {
-  tmpl_log(NULL,level, "HTML::Template::Pro:in %cTMPL_%s at pos %td:",
+  tmpl_log(NULL,level, "HTML::Template::Pro:in %cTMPL_%s at pos " MOD_TD ":",
 	  (state->is_tag_closed ? '/' : ' '), 
 	   (state->tag>HTML_TEMPLATE_BAD_TAG && state->tag <=HTML_TEMPLATE_LAST_TAG_USED) ? TAGNAME[state->tag] : "", 
-	   state->tag_start - state->top);
+	   TO_PTRDIFF_T(state->tag_start - state->top));
 }
 
+TMPLPRO_LOCAL
 PSTRING _get_variable_value (struct tmplpro_param *param, PSTRING name) {
   PSTRING varvalue ={NULL, NULL};
   ABSTRACT_VALUE* abstrval;
@@ -546,7 +548,8 @@ tag_handler_else (struct tmplpro_state *state)
   } else if (1==iftag->vcontext) {
     state->is_visible=1;
   }
-  if (debuglevel>3) tmpl_log(state,TMPL_LOG_DEBUG2,"else:(pos %td) visible:context =%d, set to %d ",iftag->position - state->top,iftag->vcontext,state->is_visible);
+  if (debuglevel>3) tmpl_log(state,TMPL_LOG_DEBUG2,"else:(pos " MOD_TD ") visible:context =%d, set to %d ",
+			     TO_PTRDIFF_T(iftag->position - state->top),iftag->vcontext,state->is_visible);
 }
 
 static 
@@ -574,7 +577,8 @@ tag_handler_elsif (struct tmplpro_state *state, PSTRING name)
       state->is_visible=0;
     }
   }
-  if (debuglevel>3) tmpl_log(state,TMPL_LOG_DEBUG2,"elsif:(pos %td) visible:context =%d, set to %d ",iftag->position - state->top,iftag->vcontext,state->is_visible);
+  if (debuglevel>3) tmpl_log(state,TMPL_LOG_DEBUG2,"elsif:(pos " MOD_TD ") visible:context =%d, set to %d ",
+			     TO_PTRDIFF_T(iftag->position - state->top), iftag->vcontext, state->is_visible);
 }
 
 static 
@@ -715,7 +719,8 @@ read_tag_parameter_value (struct tmplpro_state *state)
     }
   }
   if (cur_pos>=next_to_end) {
-    tmpl_log(state,TMPL_LOG_ERROR,"quote char %c at pos %td is not terminated\n",quote_char,state->cur_pos-state->top);
+    tmpl_log(state,TMPL_LOG_ERROR,"quote char %c at pos " MOD_TD " is not terminated\n",
+	     quote_char,TO_PTRDIFF_T(state->cur_pos-state->top));
     modifier_value.endnext=modifier_value.begin;
     jump_over_space(state);
     return modifier_value;
@@ -725,11 +730,12 @@ read_tag_parameter_value (struct tmplpro_state *state)
     if (quote_char==*cur_pos) {
       cur_pos++;
     } else {
-      tmpl_log(state,TMPL_LOG_ERROR,"found %c instead of end quote %c at pos %td\n",*cur_pos,quote_char,cur_pos - state->top);
+      tmpl_log(state,TMPL_LOG_ERROR,"found %c instead of end quote %c at pos " MOD_TD "\n",
+	       *cur_pos,quote_char,TO_PTRDIFF_T(cur_pos - state->top));
     }
   }
   state->cur_pos=cur_pos;
-  /* tmpl_log(state,TMPL_LOG_DEBUG2," at pos %td",state->cur_pos-state->top); */
+  /* tmpl_log(state,TMPL_LOG_DEBUG2," at pos " MOD_TD "",TO_PTRDIFF_T(state->cur_pos-state->top)); */
   jump_over_space(state);
   return modifier_value;
 }
@@ -762,11 +768,11 @@ try_tmpl_var_options (struct tmplpro_state *state, PSTRING* OptEscape, PSTRING* 
   static const char* DEFAULTOPT="DEFAULT";
   if (try_tag_parameter(state, escapeopt, ESCAPEOPT)) {
     *OptEscape=read_tag_parameter_value(state);
-    tmpl_log(state,TMPL_LOG_DEBUG, "found option ESCAPE at pos %td\n",state->cur_pos-state->top);
+    tmpl_log(state,TMPL_LOG_DEBUG, "found option ESCAPE at pos " MOD_TD "\n",TO_PTRDIFF_T(state->cur_pos-state->top));
   }
   if (try_tag_parameter(state, defaultopt, DEFAULTOPT)) {
     *OptDefault=read_tag_parameter_value(state);
-    tmpl_log(state,TMPL_LOG_DEBUG, "found option DEFAULT at pos %td\n",state->cur_pos-state->top);
+    tmpl_log(state,TMPL_LOG_DEBUG, "found option DEFAULT at pos " MOD_TD "\n",TO_PTRDIFF_T(state->cur_pos-state->top));
   }
 }
 
@@ -795,16 +801,16 @@ process_tmpl_tag(struct tmplpro_state *state)
       state->tag=tag_type;
       if (debuglevel) {
 	if (is_tag_closed) {
-	  tmpl_log(NULL,TMPL_LOG_DEBUG, "found </TMPL_%s> at pos %td\n",TAGNAME[i],state->cur_pos-state->top);
+	  tmpl_log(NULL,TMPL_LOG_DEBUG, "found </TMPL_%s> at pos " MOD_TD "\n",TAGNAME[i], TO_PTRDIFF_T(state->cur_pos-state->top));
 	} else {
-	  tmpl_log(NULL,TMPL_LOG_DEBUG, "found <TMPL_%s> at pos %td\n",TAGNAME[i],state->cur_pos-state->top);
+	  tmpl_log(NULL,TMPL_LOG_DEBUG, "found <TMPL_%s> at pos " MOD_TD "\n",TAGNAME[i], TO_PTRDIFF_T(state->cur_pos-state->top));
 	}
       }
       break;
     }
   }
   if (HTML_TEMPLATE_BAD_TAG==tag_type) {
-    tmpl_log(state,TMPL_LOG_ERROR, "found BAD at pos %td ",state->cur_pos-state->top);
+    tmpl_log(state,TMPL_LOG_ERROR, "found BAD at pos " MOD_TD " ", TO_PTRDIFF_T(state->cur_pos-state->top));
     /* TODO: flush its data ---  */
     state->cur_pos++;
     return;
@@ -815,7 +821,8 @@ process_tmpl_tag(struct tmplpro_state *state)
 			|| tag_type==HTML_TEMPLATE_TAG_INCLUDE
 			|| tag_type==HTML_TEMPLATE_TAG_VAR
 )) {
-    tmpl_log(state,TMPL_LOG_ERROR, "incorrect tag </TMPL_%s> at pos %td\n",TAGNAME[tag_type],state->cur_pos-state->top);
+    tmpl_log(state,TMPL_LOG_ERROR, "incorrect tag </TMPL_%s> at pos " MOD_TD "\n",
+	     TAGNAME[tag_type], TO_PTRDIFF_T(state->cur_pos-state->top));
   }
 
   if (is_tag_closed || tag_type==HTML_TEMPLATE_TAG_ELSE) {
@@ -862,7 +869,8 @@ process_tmpl_tag(struct tmplpro_state *state)
   if ('>'==*(state->cur_pos)) {
     state->cur_pos++;
   } else {
-    tmpl_log(state,TMPL_LOG_ERROR,"end tag:found %c instead of > at pos %td\n",*state->cur_pos,state->cur_pos-state->top);
+    tmpl_log(state,TMPL_LOG_ERROR,"end tag:found %c instead of > at pos " MOD_TD "\n",
+	     *state->cur_pos, TO_PTRDIFF_T(state->cur_pos-state->top));
   }
   /* flush run chars (if in SHOW mode) */
   if (state->is_visible) {
@@ -1036,16 +1044,30 @@ tmplpro_exec_tmpl_scalarref (struct tmplpro_param *param, PSTRING memarea)
 
 #include "callback_stubs.inc"
 
+API_IMPL 
 int 
+APICALL
 tmplpro_exec_tmpl (struct tmplpro_param *param)
 {
   if (param->GetAbstractValFuncPtr==NULL ||
-      param->AbstractVal2pstringFuncPtr==NULL ||
-      param->AbstractVal2abstractArrayFuncPtr==NULL ||
-      /*param->GetAbstractArrayLengthFuncPtr==NULL ||*/
-      param->GetAbstractMapFuncPtr==NULL) {
+       param->AbstractVal2pstringFuncPtr==NULL ||
+       param->AbstractVal2abstractArrayFuncPtr==NULL ||
+       /*param->GetAbstractArrayLengthFuncPtr==NULL ||*/
+       param->GetAbstractMapFuncPtr==NULL ||
+      (param->IsExprUserfncFuncPtr!=NULL &&
+       (param->InitExprArglistFuncPtr==NULL ||
+	param->PushExprArglistFuncPtr==NULL ||
+	param->FreeExprArglistFuncPtr==NULL ||
+	param->CallExprUserfncFuncPtr==NULL))
+      )
+    {
     tmpl_log(NULL,TMPL_LOG_ERROR,"tmplpro_exec_tmpl: a required callback is missing.");
     return 1;
+  }
+  if (param->filters &&
+      (param->LoadFileFuncPtr==NULL ||
+       param->UnloadFileFuncPtr==NULL)) {
+    tmpl_log(NULL,TMPL_LOG_ERROR,"tmplpro_exec_tmpl: filters is set but filter callbacks are missing.");
   }
   /* set up stabs */
   if (NULL==param->WriterFuncPtr) param->WriterFuncPtr = stub_write_chars_to_stdout;
@@ -1062,20 +1084,26 @@ tmplpro_exec_tmpl (struct tmplpro_param *param)
   return 1;
 }
 
+API_IMPL 
 void 
+APICALL
 tmplpro_procore_init()
 {
   /* to save time on malloc/free at each included template */
   /* tagstack_selftest(); */
 }
 
+API_IMPL 
 void 
+APICALL
 tmplpro_procore_done()
 {
 }
 
 /* internal initialization of struct tmplpro_param */
+API_IMPL 
 struct tmplpro_param* 
+APICALL
 tmplpro_param_init()
 {
   struct tmplpro_param* param=(struct tmplpro_param*) malloc (sizeof(struct tmplpro_param));
@@ -1091,10 +1119,13 @@ tmplpro_param_init()
      param->expr_func_map=NULL;
      param->expr_func_arglist=NULL;
   */
+  param->case_sensitive=1;
   return param;
 }
 
+API_IMPL 
 void
+APICALL
 tmplpro_param_free(struct tmplpro_param* param)
 {
   if (0!=pbuffer_size(&param->builtin_findfile_buffer)) pbuffer_free(&param->builtin_findfile_buffer);

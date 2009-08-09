@@ -9,18 +9,28 @@
 #include <ctype.h> /* for yylex alnum */
 #include "calc.h"  /* Contains definition of `symrec'.  */
 #include "tmpllog.h"
-/* for expr-specific only */
 #include "pabstract.h"
 #include "prostate.h"
 #include "provalue.h"
+#include "pparam.h"
+#include "pmiscdef.h"
+/* for expr-specific only */
 #include "exprtool.h"
 #include "exprpstr.h"
-#include "pparam.h"
+#include "parse_expr.h"
+  /* kill them.
+Debug Assertion Failed! f:\dd\vctools\crt_bld\self_x86\crt\src \isctype.c Expression:(unsigned)(c + 1) <= 256 
+   */
+#ifdef _MSC_VER
+#  define TO_UNSIGNED_CHAR(X) ((unsigned char) (X))
+#else
+#  define TO_UNSIGNED_CHAR(X) X
+#endif
   %}
 %union {
   struct exprval numval;   /* For returning numbers.  */
   const symrec_const  *tptr;   /* For returning symbol-table pointers.  */
-  void* extfunc;  /* for user-defined function name */
+  struct user_func_call extfunc;  /* for user-defined function name */
 }
 %{
   /* the second section is required as we use YYSTYPE here */
@@ -32,7 +42,7 @@
 %token <extfunc> EXTFUNC    /* user-defined function */
 %token <tptr> VAR FNCT   /* built-in Variable and Function.  */
 %type  <numval>  numEXP
-%type  <numval>  arglist
+%type  <extfunc> arglist
      
 /*%right '='*/
 %left OR
@@ -64,13 +74,13 @@ line: numEXP
 numEXP: NUM			{ $$ = $1;			}
 | VAR				{ $$.type=EXPR_TYPE_DBL; $$.val.dblval = $1->var; }
 /*| VAR '=' numEXP 		{ $$ = $3; $1->value.var = $3;	} */
-| EXTFUNC '(' arglist ')'
+| arglist ')'
                  {
 		   $$ = call_expr_userfunc(state, $1);
 		 }
 | EXTFUNC '(' ')'
                  {
-		   state->param->expr_func_arglist=state->param->InitExprArglistFuncPtr(state->param->ext_calluserfunc_state);
+		   $1.arglist=state->param->InitExprArglistFuncPtr(state->param->ext_calluserfunc_state);
 		   $$ = call_expr_userfunc(state, $1);
 		 }
 | FNCT '(' numEXP ')'		
@@ -167,13 +177,12 @@ numEXP: NUM			{ $$ = $1;			}
 | numEXP reNOTLIKE numEXP	{ DO_TXTOP($$,re_notlike,$1,$3,state->param);}
 ;
 
-/*arglist: {state->param->expr_func_arglist=state->param->InitExprArglistFuncPtr(state->param->expr_func_map);}
-  | numEXP 	 	 { */
-arglist: numEXP 	 	{ 
-  state->param->expr_func_arglist=state->param->InitExprArglistFuncPtr(state->param->expr_func_map);
-  pusharg_expr_userfunc(state,$1);
+arglist: EXTFUNC '(' numEXP 	 	{
+  $1.arglist=state->param->InitExprArglistFuncPtr(state->param->expr_func_map);
+  pusharg_expr_userfunc(state,$1,$3);
+  $$ = $1;
 }
-| arglist ',' numEXP	 { pusharg_expr_userfunc(state,$3);	}
+| arglist ',' numEXP	 { pusharg_expr_userfunc(state,$1,$3); $$ = $1;	}
 ;
 
 /* End of grammar.  */
@@ -218,6 +227,7 @@ builtin_symrec[] =
 
 #include "calc.inc"
 
+TMPLPRO_LOCAL
 PSTRING 
 parse_expr(PSTRING expression, struct tmplpro_state* state)
 {
@@ -235,7 +245,10 @@ parse_expr(PSTRING expression, struct tmplpro_state* state)
 static
 void 
 expr_debug(struct tmplpro_state* state, char const *msg1, char const *msg2) {
-  tmpl_log(NULL, TMPL_LOG_ERROR, "EXPR:at pos %td [%td]: %s %s\n", (state->expr_curpos)-(state->top),(state->expr_curpos)-(state->expr).begin,msg1,msg2);
+  tmpl_log(NULL, TMPL_LOG_ERROR, "EXPR:at pos " MOD_TD " [" MOD_TD "]: %s %s\n", 
+	   TO_PTRDIFF_T((state->expr_curpos)-(state->top)),
+	   TO_PTRDIFF_T((state->expr_curpos)-(state->expr).begin),
+	   msg1,msg2);
 }
 
 static
@@ -272,7 +285,7 @@ static
 int 
 is_alnum_lex (char c)
 {
-  return (c == '_' || isalnum (c));
+  return (c == '_' || isalnum (TO_UNSIGNED_CHAR(c)));
 }
 
 static 
@@ -329,7 +342,7 @@ yylex (YYSTYPE *lvalp, struct tmplpro_state* state)
 	
   state->is_expect_quote_like=0;
   /* Char starts a number => parse the number.         */
-  if (c == '.' || isdigit (c))
+  if (c == '.' || isdigit (TO_UNSIGNED_CHAR(c)))
     {
       (*lvalp).numval=exp_read_number (state, &(state->expr_curpos), (state->expr).endnext);
       return NUM;
@@ -366,7 +379,7 @@ yylex (YYSTYPE *lvalp, struct tmplpro_state* state)
       if (s != 0) {
 	(*lvalp).tptr = s;
 	return s->type;
-      } else if (((*lvalp).extfunc=(state->param->IsExprUserfncFuncPtr)(state->param->expr_func_map, name))) {
+      } else if (((*lvalp).extfunc.func=(state->param->IsExprUserfncFuncPtr)(state->param->expr_func_map, name))) {
 	/* tmpl_log(NULL, TMPL_LOG_ERROR, "lex:detected func %s\n", name.begin); */
 	return EXTFUNC;
       } else {
@@ -405,23 +418,23 @@ yylex (YYSTYPE *lvalp, struct tmplpro_state* state)
 
 static
 struct exprval
-call_expr_userfunc(struct tmplpro_state* state, void* ABSTRACT_EXTFUNC) {
+call_expr_userfunc(struct tmplpro_state* state, struct user_func_call USERFUNC) {
   struct exprval emptyval = {EXPR_TYPE_PSTR};
   emptyval.val.strval.begin=NULL;
   emptyval.val.strval.endnext=NULL;
   state->param->userfunc_call = emptyval;
-  state->param->CallExprUserfncFuncPtr(state->param->ext_calluserfunc_state,state->param->expr_func_arglist, ABSTRACT_EXTFUNC, state->param);
+  state->param->CallExprUserfncFuncPtr(state->param->ext_calluserfunc_state, USERFUNC.arglist, USERFUNC.func, &(state->param->userfunc_call));
   if (state->param->debug>6) _tmplpro_expnum_debug (state->param->userfunc_call, "EXPR: function call: returned ");
-  state->param->FreeExprArglistFuncPtr(state->param->expr_func_arglist);
-  state->param->expr_func_arglist = NULL;
+  state->param->FreeExprArglistFuncPtr(USERFUNC.arglist);
+  USERFUNC.arglist = NULL;
   return state->param->userfunc_call;
 }
 
 static
 void
-pusharg_expr_userfunc(struct tmplpro_state* state, struct exprval arg) {
+pusharg_expr_userfunc(struct tmplpro_state* state, struct user_func_call USERFUNC, struct exprval arg) {
   state->param->userfunc_call = arg;
-  state->param->PushExprArglistFuncPtr(state->param->expr_func_arglist,state->param);
+  state->param->PushExprArglistFuncPtr(USERFUNC.arglist,&(state->param->userfunc_call));
   if (state->param->debug>6) _tmplpro_expnum_debug (arg, "EXPR: arglist: pushed ");
 }
 
